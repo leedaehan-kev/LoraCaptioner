@@ -1,7 +1,9 @@
+import os
 from typing import Optional
 
+import PIL
 import torch
-from peft import get_peft_model, LoraConfig
+from peft import get_peft_model, LoraConfig, PeftModel
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from PIL import Image
 
@@ -16,13 +18,13 @@ class ImageCaptioner(torch.nn.Module):
         self.device = device
 
         # image encoder (CLIP)
-        self.img_encoder, _ = clip.load(img_encoder_name, device=device)
+        self.img_encoder, self.img_preprocess = clip.load(img_encoder_name, device=device)
 
         # text encoder-decoder (flan-t5)
         self.text_encdec = AutoModelForSeq2SeqLM.from_pretrained(text_encdec_name).to(device)
 
-        # projection matrix; size = (CLIP dim, T5 dim) = (512, 768)
-        self.projection = torch.nn.Parameter(torch.randn(512, self.text_encdec.model_dim, dtype=self.text_encdec.dtype)).to(device)
+        # projection matrix; CLIP hidden dim -> T5 hidden dim (512 -> 768)
+        self.projection = torch.nn.Linear(512, self.text_encdec.model_dim).to(device)
 
         # freeze img_encoder
         for param in self.img_encoder.parameters():
@@ -43,18 +45,44 @@ class ImageCaptioner(torch.nn.Module):
 
         # project image features to match the dim of text decoder
         img_features = img_features.type(self.text_encdec.dtype)
-        img_features = img_features @ self.projection  # size = (B, Number of patches, T5 hidden dim) = (*, 196, 768)
+        img_features = self.projection(img_features)  # size = (B, Number of patches, T5 hidden dim) = (*, 196, 768)
 
         # text encoder-decoder
         outputs = self.text_encdec(encoder_outputs=(img_features,), labels=tokenized_caption)  # size = (B, L, T5 vocab size) = (*, L, 32128)
         return outputs
 
+    def save(self, save_dir: str):
+        """Only save the projection and lora parameters. Create save_dir if not exists"""
+        # create save_dir if not exists
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+        # projection
+        torch.save(self.projection.state_dict(), save_dir + "/projection.pt")
+
+        # lora (this only saves the lora parameters)
+        self.text_encdec.save_pretrained(save_dir)
+
+    def load(self, save_dir: str):
+        """Only load the projection and lora parameters"""
+        # projection
+        self.projection.load_state_dict(torch.load(save_dir + "/projection.pt", map_location=self.device))
+
+        # lora
+        self.text_encdec = PeftModel.from_pretrained(self.text_encdec, save_dir)
+
 
 # test code
 if __name__ == '__main__':
-    model = ImageCaptioner("ViT-B/16", "google/flan-t5-base", device="cuda")
+    model = ImageCaptioner("ViT-B/16", "google/flan-t5-base", lora_config={"r": 2, "lora_dropout": .1, "lora_alpha": 16, "target_modules": ['q'],},
+                           device="cuda")
 
-    caption = "Some kind of caption"
-    image = Image.open("../images/test.jpg")
+    model.save("../test_save")
+    model.load("../test_save")
+
+    # pseudo inputs
+    caption = torch.randint(0, 32128, (1, 17)).cuda()
+    image = torch.rand((1, 3, 224, 224)).cuda()
 
     outputs = model(caption, image)
+    print('Done!')

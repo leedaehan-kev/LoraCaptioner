@@ -12,13 +12,12 @@ class BaseRun:
         wandb.init(project=project, name=run_name, config=config)
         self.config = wandb.config
 
-    def __call__(self, debug=False):
+        self.save_dir = f'./model_checkpoints/{wandb.run.id}'
+
+    def __call__(self):
         for epoch in range(self.config.num_epochs):
             self.train(epoch)
             self.validate(epoch)
-
-            if debug:
-                break
 
     def train(self, epoch):
         raise NotImplementedError
@@ -56,7 +55,7 @@ class ImageCaptionerRun(BaseRun):
         # device
         self.device = self.config.device
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self):
         # count parameters
         wandb.run.summary['num_trainable_params'] = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         wandb.run.summary['num_total_params'] = sum(p.numel() for p in self.model.parameters())
@@ -67,7 +66,7 @@ class ImageCaptionerRun(BaseRun):
         self.best_val_loss = float('inf')
 
         # train/eval loop
-        super().__call__(*args, **kwargs)
+        super().__call__()
 
     def train(self, epoch):
         running_loss_epoch = 0.0
@@ -113,5 +112,9 @@ class ImageCaptionerRun(BaseRun):
         # compare with best loss
         if running_loss_epoch < self.best_val_loss:
             self.best_val_loss = running_loss_epoch
-            wandb.run.summary['best_val_loss'] = self.best_val_loss
-            self.model.text_encdec.save_pretrained(f"{wandb.run.dir}/best_model")
+            wandb.run.summary['best_val_loss'] = self.best_val_loss / len(self.val_dataloader)
+
+            # save model
+            self.model.save(self.save_dir)
+            print(f'Best model saved at {self.save_dir}')
+

@@ -10,7 +10,6 @@ if __name__ == '__main__':
     parser.add_argument('config_path', type=str, help='path to config file')
     parser.add_argument('--project', type=str, default='tl_summer2023', help='project name')
     parser.add_argument('--run_name', type=str, help='run name')
-    parser.add_argument('--debug', action='store_true', help='debug mode')
     args = parser.parse_args()
 
     # read config
