@@ -1,0 +1,17 @@
+batch_size: 64
+device: cuda
+img_encoder_name: ViT-B/16
+log_interval_batch: 2000
+lora_config:
+  lora_alpha: 16
+  lora_dropout: 0.1
+  r: 4
+  target_modules:
+  - SelfAttention.q
+  - SelfAttention.k
+  - EncDecAttention.q
+  - EncDecAttention.k
+lr: 0.005
+num_epochs: 8
+num_workers: 4
+text_encdec_name: google/flan-t5-base
