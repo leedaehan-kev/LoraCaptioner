@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass
 from typing import Optional
 
 import PIL
@@ -21,6 +22,7 @@ class ImageCaptioner(torch.nn.Module):
         self.img_encoder, self.img_preprocess = clip.load(img_encoder_name, device=device)
 
         # text encoder-decoder (flan-t5)
+        self.tokenizer = AutoTokenizer.from_pretrained(text_encdec_name)
         self.text_encdec = AutoModelForSeq2SeqLM.from_pretrained(text_encdec_name).to(device)
 
         # projection matrix; CLIP hidden dim -> T5 hidden dim (512 -> 768)
@@ -70,6 +72,36 @@ class ImageCaptioner(torch.nn.Module):
 
         # lora
         self.text_encdec = PeftModel.from_pretrained(self.text_encdec, save_dir)
+
+    @torch.no_grad()
+    def generate_caption(self, img: PIL.Image) -> str:
+        # preprocess and encode image
+        img_input = self.img_preprocess(img).unsqueeze(0).to(self.device)  # size = (*, 3, 224, 224)
+        img_features = self.img_encoder.encode_image(img_input, get_seq=True)  # size = (*, 196, 512)
+        img_features = img_features.type(self.text_encdec.dtype)
+        img_features = self.projection(img_features)  # size = (*, 196, 768)
+
+        # encoder_outputs has img_features as 'last_hidden_state' attribute
+        # but also encoder_outputs[0] should be img_features
+        @dataclass
+        class EncoderOutput:
+            last_hidden_state: torch.Tensor
+            def __getitem__(self, index):
+                if index == 0:
+                    return self.last_hidden_state
+                else:
+                    raise IndexError('Index out of range. You can only access index 0.')
+            def __len__(self):
+                return 1
+
+        encoder_outputs = EncoderOutput(last_hidden_state=img_features)
+
+        # generate caption
+        self.text_encdec.eval()
+        output = self.text_encdec.generate(inputs=None, encoder_outputs=encoder_outputs)
+        caption = self.tokenizer.decode(output[0], skip_special_tokens=True)
+
+        return caption
 
 
 # test code
