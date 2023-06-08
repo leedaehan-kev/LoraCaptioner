@@ -11,7 +11,7 @@ from src import myclip as clip
 
 
 class ConCapDataset(Dataset):
-    def __init__(self, split, img_encoder_name, text_encdec_name, device='cuda'):
+    def __init__(self, split, img_encoder_name, text_encdec_name, device='cuda', subset_size=None):
         # data
         self.data = pd.read_csv(f'/projects/datasets/concap/{split}.tsv', sep='\t', header=None)
         self.img_folder_path = f'/userhomes/yejoon/tl_summer2023/images/{split}'
@@ -20,8 +20,14 @@ class ConCapDataset(Dataset):
         _, self.img_preprocess = clip.load(img_encoder_name, device=device)
         self.tokenizer = AutoTokenizer.from_pretrained(text_encdec_name)
 
+        # if subset_size is set, use only the first subset_size samples
+        self.subset_size = subset_size
+
     def __len__(self):
-        return len(self.data)
+        if self.subset_size is None or self.subset_size > len(self.data):
+            return len(self.data)
+        else:
+            return self.subset_size
 
     def _preprocess_image(self, img: Image) -> torch.Tensor:
         """Preprocess raw image into tensor"""
@@ -62,11 +68,6 @@ class ConCapDataset(Dataset):
         images = torch.cat(images)
 
         return captions, images
-
-
-class ConCapDataset1K(ConCapDataset):
-    def __len__(self):
-        return 1000
 
 
 # test code
