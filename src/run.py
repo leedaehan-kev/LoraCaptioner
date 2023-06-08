@@ -37,7 +37,7 @@ class ImageCaptionerRun(BaseRun):
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.config.lr)
 
         # dataset
-        train_dset = ConCapDataset('train', self.config.img_encoder_name, self.config.text_encdec_name)
+        train_dset = ConCapDataset('train', self.config.img_encoder_name, self.config.text_encdec_name, subset_size=self.config.data_subset_size)
         val_dset = ConCapDataset('validation', self.config.img_encoder_name, self.config.text_encdec_name)
 
         # dataloader
