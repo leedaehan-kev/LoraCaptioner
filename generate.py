@@ -3,16 +3,17 @@ from PIL import Image
 
 from src.model import ImageCaptioner
 
-config_path = './configs/default.yaml'
-model_checkpoint = './model_checkpoints/a8kkhy1b'
+CONFIG_PATH = './configs/default.yaml'
+MODEL_CHECKPOINT = './model_checkpoints/abkx98e7'
+
 
 # read config
-with open(config_path, 'r') as f:
+with open(CONFIG_PATH, 'r') as f:
     config = yaml.load(f, Loader=yaml.FullLoader)
 
 # load model
 model = ImageCaptioner(config['img_encoder_name'], config['text_encdec_name'], config['lora_config'], config['device'])
-model.load(model_checkpoint)
+model.load(MODEL_CHECKPOINT)
 
 # sample images from images/validation
 x = 100
@@ -31,6 +32,9 @@ for i in image_ids:
 
     print(caption)
 
-    # # write to results dir
-    # with open(f'./results/{i}.txt', 'w') as f:
-    #     f.write(caption)
+    # write to results dir
+    with open(f'./results/{i}.txt', 'w') as f:
+        f.write(caption)
+
+    with open(f'./results/{i}.jpg', 'wb') as f:
+        img.save(f)
