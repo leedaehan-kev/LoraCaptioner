@@ -3,16 +3,23 @@ from dataclasses import dataclass
 from typing import Optional
 
 import PIL
+from PIL import Image
 import torch
 from peft import get_peft_model, LoraConfig, PeftModel
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-from PIL import Image
 
 from src import myclip as clip
 
 
 class ImageCaptioner(torch.nn.Module):
     def __init__(self, img_encoder_name: str, text_encdec_name: str, lora_config: Optional[dict] = None, device='cuda'):
+        """
+        Initialize ImageCaptioner.
+        :param img_encoder_name (str): img_encoder_name for OpenAI CLIP. Used in `clip.load(img_encoder_name, device=device)`
+        :param text_encdec_name (str): text_encdec_name for 🤗 transformers. Used in `AutoModelForSeq2SeqLM.from_pretrained(text_encdec_name)`
+        :param lora_config (dict, optional): lora_config for 🤗 peft. Should include args for `peft.LoraConfig`
+        :param device (optional): torch device to use. Default: 'cuda'
+        """
         super().__init__()
 
         # device
@@ -50,11 +57,11 @@ class ImageCaptioner(torch.nn.Module):
         img_features = self.projection(img_features)  # size = (B, Number of patches, T5 hidden dim) = (*, 196, 768)
 
         # text encoder-decoder
-        outputs = self.text_encdec(encoder_outputs=(img_features,), labels=tokenized_caption)  # size = (B, L, T5 vocab size) = (*, L, 32128)
-        return outputs
+        loss = self.text_encdec(encoder_outputs=(img_features,), labels=tokenized_caption).loss  # size = (B, L, T5 vocab size) = (*, L, 32128)
+        return loss
 
     def save(self, save_dir: str):
-        """Only save the projection and lora parameters. Create save_dir if not exists"""
+        """Only save the projection and lora parameters. Create save_dir if not exists."""
         # create save_dir if not exists
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
@@ -66,7 +73,7 @@ class ImageCaptioner(torch.nn.Module):
         self.text_encdec.save_pretrained(save_dir)
 
     def load(self, save_dir: str):
-        """Only load the projection and lora parameters"""
+        """Only load the trained parameters: projection and lora parameters. The rest should be loaded from the pretrained model."""
         # projection
         self.projection.load_state_dict(torch.load(save_dir + "/projection.pt", map_location=self.device))
 
@@ -106,13 +113,14 @@ class ImageCaptioner(torch.nn.Module):
 
 # test code
 if __name__ == '__main__':
+    # Test 1: model save and load
     model = ImageCaptioner("ViT-B/16", "google/flan-t5-base", lora_config={"r": 2, "lora_dropout": .1, "lora_alpha": 16, "target_modules": ['q'],},
                            device="cuda")
 
     model.save("../test_save")
     model.load("../test_save")
 
-    # pseudo inputs
+    # Test 2: model forward
     caption = torch.randint(0, 32128, (1, 17)).cuda()
     image = torch.rand((1, 3, 224, 224)).cuda()
 
