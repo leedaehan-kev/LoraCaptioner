@@ -45,9 +45,9 @@ class ImageCaptioner(torch.nn.Module):
 
     def forward(self, tokenized_caption: torch.Tensor, img_input: torch.Tensor):
         """
-        :param tokenized_caption: caption tokenized with tokenizer; size = (B, L)
-        :param img_input: image input; size = (B, C, W, H) = (*, 3, 224, 224)
-        :return:
+        :param tokenized_caption (torch.Tensor): caption tokenized with tokenizer; size = (B, L)
+        :param img_input (torch.Tensor): image input; size = (B, C, W, H) = (*, 3, 224, 224)
+        :return: loss (torch.Tensor): loss from 🤗 output; size = (1,)
         """
         # encode image
         img_features = self.img_encoder.encode_image(img_input, get_seq=True)  # size = (B, Number of patches, CLIP hidden dim) = (*, 196, 512)
@@ -57,7 +57,7 @@ class ImageCaptioner(torch.nn.Module):
         img_features = self.projection(img_features)  # size = (B, Number of patches, T5 hidden dim) = (*, 196, 768)
 
         # text encoder-decoder
-        loss = self.text_encdec(encoder_outputs=(img_features,), labels=tokenized_caption).loss  # size = (B, L, T5 vocab size) = (*, L, 32128)
+        loss = self.text_encdec(encoder_outputs=(img_features,), labels=tokenized_caption).loss
         return loss
 
     def save(self, save_dir: str):

@@ -11,6 +11,7 @@ from src import myclip as clip
 
 
 class ConCapDataset(Dataset):
+    """PyTorch Dataset for Conceptual Captions dataset"""
     def __init__(self, split, img_encoder_name, text_encdec_name, device='cuda', subset_size=None):
         # data
         self.data = pd.read_csv(f'/projects/datasets/concap/{split}.tsv', sep='\t', header=None)
@@ -54,9 +55,10 @@ class ConCapDataset(Dataset):
 
         img_input = self._preprocess_image(img)
 
-        return caption, img_input  # returning raw caption instead of tokenized one
+        return caption, img_input  # returning raw caption (str) instead of tokenized one (tensor)
 
     def collate_fn(self, batch):
+        """Collate function for DataLoader"""
         # remove None samples, this will result in a smaller batch size
         batch = list(filter(lambda x: x is not None, batch))
         captions, images = zip(*batch)
