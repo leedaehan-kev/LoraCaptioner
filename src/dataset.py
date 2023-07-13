@@ -12,9 +12,9 @@ from src import myclip as clip
 
 class ConCapDataset(Dataset):
     """PyTorch Dataset for Conceptual Captions dataset"""
-    def __init__(self, split, img_encoder_name, text_encdec_name, device='cuda', subset_size=None):
+    def __init__(self, split, img_encoder_name, text_encdec_name, device='cuda', subset_size: int = -1):
         # data
-        self.data = pd.read_csv(f'/projects/datasets/concap/{split}.tsv', sep='\t', header=None)
+        self.data = pd.read_csv(f'/projects/datasets/concap/{split}_valid.tsv', sep='\t', header=None)
         self.img_folder_path = f'/userhomes/yejoon/tl_summer2023/images/{split}'
 
         # for preprocessing
@@ -22,13 +22,14 @@ class ConCapDataset(Dataset):
         self.tokenizer = AutoTokenizer.from_pretrained(text_encdec_name)
 
         # if subset_size is set, use only the first subset_size samples
+        # -1 means use all samples
         self.subset_size = subset_size
 
     def __len__(self):
-        if self.subset_size is None or self.subset_size > len(self.data):
-            return len(self.data)
-        else:
+        if 0 < self.subset_size < len(self.data):
             return self.subset_size
+        else:
+            return len(self.data)
 
     def _preprocess_image(self, img: Image) -> torch.Tensor:
         """Preprocess raw image into tensor"""
@@ -37,33 +38,21 @@ class ConCapDataset(Dataset):
         return img_input
 
     def __getitem__(self, index):
-        caption = self.data.iloc[index, 0]
+        caption = self.data.iloc[index, 1]
+        img_idx = self.data.iloc[index, 0]
 
-        img_path = os.path.join(self.img_folder_path, f"{index}.jpg")
-        if not os.path.exists(img_path):
-            # If the image file does not exist, return None.
-            return None
-
-        try:
-            img = Image.open(img_path)
-        except PIL.UnidentifiedImageError:
-            # returning None causes error when using num_workers > 1
-            # instead, return a different random sample
-            # potentially causes infinite loop, but it's highly unlikely
-            rand_i = torch.randint(0, len(self), (1,)).item()
-            return self.__getitem__(rand_i)
-
+        img_path = os.path.join(self.img_folder_path, f"{img_idx}.jpg")
+        img = Image.open(img_path)
         img_input = self._preprocess_image(img)
 
         return caption, img_input  # returning raw caption (str) instead of tokenized one (tensor)
 
     def collate_fn(self, batch):
         """Collate function for DataLoader"""
-        # remove None samples, this will result in a smaller batch size
-        batch = list(filter(lambda x: x is not None, batch))
         captions, images = zip(*batch)
 
         # tokenize and pad captions to the longest one in the batch
+        # TODO: pad to the multiple of 8 in order to use mixed precision training
         captions = self.tokenizer(captions, padding="longest", return_tensors="pt").input_ids
 
         # concatenate images along a new dimension
@@ -75,9 +64,8 @@ class ConCapDataset(Dataset):
 # test code
 if __name__ == '__main__':
     dataset = ConCapDataset('train', "ViT-B/16", "google/flan-t5-base")
-    dataloader = DataLoader(dataset, batch_size=4, shuffle=True, num_workers=2, collate_fn=dataset.collate_fn)
+    dataloader = DataLoader(dataset, batch_size=256, shuffle=False, num_workers=8, collate_fn=dataset.collate_fn)
 
     for captions, images in dataloader:
         print(captions.size())
         print(images.size())
-        break
