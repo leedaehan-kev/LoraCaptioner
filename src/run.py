@@ -56,7 +56,7 @@ class ImageCaptionerRun(BaseRun):
         # dataset
         train_dset = ConCapDataset('train', self.config.img_encoder_name, self.config.text_encdec_name,
                                    subset_size=self.config.data_subset_size)
-        val_dset = ConCapDataset('validation', self.config.img_encoder_name, self.config.text_encdec_name)
+        val_dset = ConCapDataset('dev', self.config.img_encoder_name, self.config.text_encdec_name)
 
         # dataloader for multiprocessing
         self.train_dataloader = DataLoader(train_dset,
