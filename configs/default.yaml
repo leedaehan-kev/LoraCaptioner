@@ -1,8 +1,8 @@
 img_encoder_name: ViT-B/16
 text_encdec_name: google/flan-t5-base
 
-batch_size_per_gpu: 64
-data_subset_size: 300000
+batch_size_per_gpu: 256
+data_subset_size: -1
 
 log_batch_interval: 10
 
