@@ -1,16 +1,17 @@
-# Technical Interview Task 2
+# LoraCaptioner
 
-## Output 1: loss curve
+## Description
+A simple image captioning model fine-tuned using LoRA with Conceptual Captions dataset.
+
+- Image encoder: ViT-B/16 (using slightly modified version of openai/clip)
+- Text decoder: Flan-T5-base (using 🤗 transformers)
+- LoRA: Attached to text decoder (using 🤗 peft)
+- Data: Used first 300K (unshuffled) rows from Conceptual Captions dataset
+
 [Wandb workspace](https://wandb.ai/wittgensteinian/tl_summer2023?workspace=user-wittgensteinian)
 
-### Edit from Jun 8 11:00 AM submission
-- Changing lr improved training very much (val_loss: 2.2 -> 1.2).
-- Because I was short on time, I only used the first 300K(or 30K) images from the dataset for the new runs. This is roughly the 10% of the whole dataset.
 
-### Ablation study on modules to which LoRA is applied
-- Removing LoRA from FFN layers (so LoRA only applied on attention layers) is bad. This is interesting as original LoRA paper only applied LoRA to attention layers.
-
-## Output 2: captioning results
+## Results (not cherry-picked)
 
 | ![Image](results/100.jpg) |
 |:-------------------------:|
@@ -47,11 +48,3 @@
 ### Results
 - Caption generally captures the overall semantics of image.
 - The model often fails to generate fluent sentences, a classic problem of text degeneration.
-
-
-
-## Output 3: codebase
-This repo itself.
-
-
-## Appendix
